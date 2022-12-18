@@ -276,7 +276,6 @@ def discriminator_train_title(discriminator,samples,labels,titles,criterion,mask
     return out,torch.mean(errD) #.detach()
 
 
-
 def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask,ewma_reward):
     '''
       The REINFORCE loss.
@@ -289,28 +288,22 @@ def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask
         Float tensor, shape [batch_size, sequence_length], the REINFORCE loss for
         each timestep.
     '''
-      # Assume 1 logit for each timestep.
-    #disc_logits = disc_logits.T
+
     batch_size, sequence_length = disc_logits.shape
     disc_pred = nn.functional.sigmoid(disc_logits)
     
     MIN_SEQ_LEN = 6 #length at which no length punishment 
     #decays as 1- len/MIN_SEQ_LEN
    # print(disc_pred)
-  # MaskGAN uses log(D), but this is more stable empirically.
-    rewards = 2.0 * disc_pred - 1
-   # print('disc_logits')
-   # print(disc_logits)
-  # Compute cumulative rewards.
 
-   # print(rewards_list)
-   # print(len(rewards_list))
+    rewards = 2.0 * disc_pred - 1
+
     cumulative_rewards = []
     cumulative_rewards = torch.zeros((batch_size,sequence_length)).cuda()
     
     #negative decaying reward for 
     length_punishment = torch.zeros((batch_size,sequence_length)).cuda()
-   # end_mask[0,1] = 0
+
     for t in range(0,sequence_length):
         if t < MIN_SEQ_LEN:
             punished_tensor = torch.ones((batch_size,)).cuda() * -(1 - t/MIN_SEQ_LEN)
@@ -319,36 +312,26 @@ def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask
             ones = torch.ones((batch_size,)).cuda()
             #if end after, its good increase reward
             length_punishment[:,t] = torch.where(end_mask[:,t] != 1,length_punishment[:,t],ones/6) 
-       # print('cum_value')
-       # print(cum_value.shape)
+
         for s in range(t, sequence_length):
-           # print('rewards shape')
-           # print(rewards[:,s].shape)
+
             cumulative_rewards[:,s] += torch.tensor(np.power(gamma, (s - t))).cuda() * rewards[:,s]
         #cumulative_rewards.append(cum_value)
-    #cumulative_rewards = torch.stack(cumulative_rewards, axis=1)
 
-    #cumulative_rewards.shape.assert_is_compatible_with([batch_size, sequence_length])
-
-    #with tf.variable_scope("reinforce", reuse=tf.AUTO_REUSE):
     cumulative_rewards = cumulative_rewards + length_punishment
 
-   # print('cumulative_rewards')
-   # print(cumulative_rewards)
-   # cumulative_rewards = cumulative_rewards[:,1:]
+
     mean_reward = torch.mean(cumulative_rewards)
    # print('mean')
    # print(mean_reward)
     ewma_reward = decay * ewma_reward + (1.0 - decay) * mean_reward
-    #update_op = tf.assign(ewma_reward, new_ewma_reward)
-    #ewma_reward = 
 
   # REINFORCE
 
     advantage = cumulative_rewards - ewma_reward#/10
 
     #this should encourage the model to not collapse to mode
-    #l2_norm = nn.functional.relu(torch.sqrt(torch.sum(torch.exp(gen_logprobs)**2)) * .1 - .6)
+
     
     
     reg_2 = nn.functional.relu(torch.exp(gen_logprobs[:,1:]) - .995)*100 #the later values, would be close to 1 if repeating
@@ -388,22 +371,16 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
         Float tensor, shape [batch_size, sequence_length], the REINFORCE loss for
         each timestep.
     '''
-      # Assume 1 logit for each timestep.
-    #disc_logits = disc_logits.T
+
     batch_size, sequence_length = disc_logits.shape
     disc_pred = nn.functional.sigmoid(disc_logits)
     
     MIN_SEQ_LEN = 6 #length at which no length punishment 
-    #decays as 1- len/MIN_SEQ_LEN
-   # print(disc_pred)
-  # MaskGAN uses log(D), but this is more stable empirically.
+
     rewards = 2.0 * disc_pred - 1
-   # print('disc_logits')
-   # print(disc_logits)
+
   # Compute cumulative rewards.
 
-   # print(rewards_list)
-   # print(len(rewards_list))
     cumulative_rewards = []
     cumulative_rewards = torch.zeros((batch_size,sequence_length)).cuda()
     
@@ -413,7 +390,7 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
     running_syllables = torch.zeros((batch_size,),dtype=torch.int32).cuda() #syllables since start token or new line 
     curr_line = torch.zeros((batch_size,),dtype=torch.int32).cuda() # current line (based on new lines) capped at 2
     desired_syllables = torch.zeros((batch_size,),dtype=torch.int32).cuda() #syllables curr line should have
-   # end_mask[0,1] = 0
+
     for t in range(0,sequence_length):
         zeros = torch.zeros((batch_size,)).cuda()
         int_zeros = torch.zeros((batch_size,),dtype=torch.int32).cuda()
@@ -456,29 +433,17 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
         running_syllables = torch.where(tokens[:,t] != 0,running_syllables,int_zeros) #if is start, zero
         running_syllables = torch.where(tokens[:,t] != 2,running_syllables,int_zeros) #if is end, zero
         #add reward if syllables match, do not punish bc worried about 
-       # print('cum_value')
-       # print(cum_value.shape)
+
         for s in range(t, sequence_length):
-           # print('rewards shape')
-           # print(rewards[:,s].shape)
+
             cumulative_rewards[:,s] += torch.tensor(np.power(gamma, (s - t))).cuda() * rewards[:,s]
-        #cumulative_rewards.append(cum_value)
-    #cumulative_rewards = torch.stack(cumulative_rewards, axis=1)
 
-    #cumulative_rewards.shape.assert_is_compatible_with([batch_size, sequence_length])
-
-    #with tf.variable_scope("reinforce", reuse=tf.AUTO_REUSE):
     cumulative_rewards = cumulative_rewards + length_punishment
 
-   # print('cumulative_rewards')
-   # print(cumulative_rewards)
-   # cumulative_rewards = cumulative_rewards[:,1:]
+
     mean_reward = torch.mean(cumulative_rewards)
-   # print('mean')
-   # print(mean_reward)
+
     ewma_reward = decay * ewma_reward + (1.0 - decay) * mean_reward
-    #update_op = tf.assign(ewma_reward, new_ewma_reward)
-    #ewma_reward = 
 
   # REINFORCE
 
@@ -487,15 +452,13 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
   
     #this should encourage the model to not collapse to mode
     reg_2 = nn.functional.relu(torch.exp(gen_logprobs[:,1:]) - .995)*100 #the later values, would be close to 1 if repeating
-   # print(torch.tensor([[0,0]]*batch_size).shape)
-   # print(reg_2.shape)
+
     reg_2 = torch.cat([torch.tensor([[0]]*batch_size).cuda(),reg_2],axis=1)
    # print(reg_2)
     
     reg_2 = reg_2 * (1/(epoch +3)) #decay
 
-    #length_punishment = length_punishment * gen_logprobs
-    #len_reg = 
+
 
     loss = -advantage.detach() * gen_logprobs +  reg_2 #note orig had a - infront of advantage...
    # print('l shape')

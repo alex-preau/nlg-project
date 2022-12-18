@@ -1,0 +1,56 @@
+############ Haiku Poetry Generation ##############
+
+
+**Dataset generation
+
+Please download the data from the following link\
+https://www.kaggle.com/datasets/hjhalani30/haiku-dataset
+save as all_haiku.csv
+
+
+Run blocks under Dataset generation header in data_processing.ipynb to produce test_data.csv, train_data.csv, and kaggle_data.csv
+
+The test and train files have poem - title pairs, and kaggle_data.csv have counts of syllables per line
+
+**Baseline Training
+
+Run all blocks in file finetuned_bart.ipynb
+
+Make sure data is in directory pointed to by processed_data_dir variable in file
+
+**syllable loss MLE models
+util functions for dataloading which are called are in utils.py
+
+Run all blocks in finetuend_bart_syllable_inc_loss.ipynb for bart with syllable loss
+finetuned_bart_syllable_naive.ipynb
+
+This constructs new dataframe of syllables matched with titles and trains models
+
+**gan models
+
+All gan util functions, inlcuding the models, are in gan_utils.py
+to train a GAN run blocks through the training loop in the noteboooks
+
+BART-GAN-naive
+BART-GAN-title
+BART-GAN-finetuned
+BART-GAN-title
+
+to train the respective models
+
+**inference
+
+To perform inference on any model, run the respective block in
+
+demo.ipynb
+This requires the saved weights (I can send them via google cloud if you want them)
+
+**testing
+
+testing functions are run in
+test-models.ipynb
+
+Run all blocks in the setup section, and then create and run tester with
+
+tester = test_{finetuned OR generator}(PATH_TO_MODEL, DS_TO_TEST_WITH)
+tester.test()
