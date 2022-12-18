@@ -34,7 +34,7 @@ class Generator(nn.Module):
         #Load Model with given checkpoint and extract its body
         self.model = BartForConditionalGeneration.from_pretrained(checkpoint)
 
-        self.softmax = nn.Softmax()
+
 
     def forward(self,inputs):
         #forward pass which creates batch of outputs based on input
