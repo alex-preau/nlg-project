@@ -38,7 +38,7 @@ class Generator(nn.Module):
 
     def forward(self,inputs):
         #forward pass which creates batch of outputs based on input
-       # print(inputs)
+      
         logprobs = []
 
         bsize = inputs['input_ids'].shape[0]
@@ -53,10 +53,7 @@ class Generator(nn.Module):
 
         encoder_hidden_state = self.model.get_encoder()(inputs['input_ids'],attention_mask=inputs['attention_mask']).last_hidden_state
         while not done:
-           # print(inputs['attention_mask'].shape)
 
-           # print('output tokens')
-           # print(output_tokens.shape)
             last_hidden = self.model.get_decoder()(input_ids=output_tokens,
                     encoder_hidden_states=encoder_hidden_state,
                     encoder_attention_mask=inputs['attention_mask'])
@@ -73,13 +70,9 @@ class Generator(nn.Module):
 
 
 
-           # lm_logits = nn.functional.batch_norm(lm_logits)
+
             cat = Categorical(logits=lm_logits)
 
-
-
-
-           # try:
             next_word = cat.sample()#lm_logits.argmax(axis=1)#.unsqueeze(-1)
             
             valid = False
@@ -126,9 +119,7 @@ class Discriminator(nn.Module):
         sequence_output = self.dropout(outputs[0]) #outputs[0]=last hidden state
         mean_embedding = torch.mean(sequence_output[:,:,:],axis=1)
 
-       # print(mean_embedding.shape)
 
-       # print(sequence_output[:,-1,:].shape)
 
         logits = (self.classifier(mean_embedding) )# calculate losses
 
@@ -144,7 +135,7 @@ class Discriminator_Titles(nn.Module):
         self.model = BartForConditionalGeneration.from_pretrained(checkpoint).model.encoder
         self.dropout = nn.Dropout(0.10) #idk if i should include dropout ... maybe bc these models are prone to mode collapse??
         self.classifier = nn.Linear(768*2,num_labels) # load and initialize weights
-       # self.logit = torch.logit()
+
 
     def forward(self, input_ids=None, title_embedding=None,attention_mask=None,labels=None):
         #Extract outputs from the body
@@ -153,12 +144,8 @@ class Discriminator_Titles(nn.Module):
         #Add custom layers
         sequence_output = self.dropout(outputs[0]) #outputs[0]=last hidden state
         mean_embedding = torch.mean(sequence_output[:,:,:],axis=1)
-
-       # print(mean_embedding.shape)
-      #  print(title_embedding_mean.shape)
-       # print(sequence_output[:,-1,:].shape)
         class_in = torch.cat([title_embedding,mean_embedding],axis=1)
-        #print(class_in.shape)
+
         logits = (self.classifier(class_in) )# calculate losses
 
 
@@ -176,6 +163,7 @@ def discriminator_train_standard(discriminator,samples,labels,criterion,mask=Non
     '''
     This function trains the discriminator based on a batch of samples and labels
     We now train by asking the discriminator to predict if each prefix is valid, not just the entire scentence
+    mask is mask of not-pad tokens
     '''
     full_len = samples.shape[1]
     #print(full_len)
@@ -189,10 +177,6 @@ def discriminator_train_standard(discriminator,samples,labels,criterion,mask=Non
 
         pred = discriminator(curr_samples)[:,-1]#.view(-1)
 
-        #outputs.append(pred.view(-1))
-
-       # a = 1/0
-        #if all have ended, stop NOTE this is a very inefficient implementation change it
         #shouldnt bother discriminating if the poem has already ended
         if mask != None:
            
@@ -209,19 +193,14 @@ def discriminator_train_standard(discriminator,samples,labels,criterion,mask=Non
                 errD = criterion(pred, labels)
             else:
                 errD += criterion(pred, labels)
-            #errD = err * mask[i]
+ 
         valid = True
         for j in range(samples.shape[0]):
             if not curr_samples[j].__contains__(2):
                 valid = False
         if valid:
             break
-   # print('out 0')
-   # print(outputs[0])
-   # print(len(outputs))
-   # print(len(outputs[0]))
-   # print(errD)
-   # a = 1/0
+
     out = torch.stack(outputs).T
    # print(errD)
     return out,torch.mean(errD) #.detach()
@@ -235,11 +214,11 @@ def discriminator_train_title(discriminator,samples,labels,titles,criterion,mask
     We now train by asking the discriminator to predict if each prefix is valid, not just the entire scentence
     '''
     full_len = samples.shape[1]
-    #print(full_len)
+
     outputs = []
 
     title_embedding = torch.mean(discriminator.model(titles).last_hidden_state,axis=1)#[:,-1,:]
-   # print(title_embedding)
+
     for i in range(0,full_len):
         
         curr_samples = samples[:,:i+1]
@@ -284,9 +263,16 @@ def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask
           gen_logprobs: float32 tensor, shape [batch_size, sequence_length]
           gamma: a float, discount factor for cumulative reward.
           decay: a float, decay rate for the EWMA baseline of REINFORCE.
+          epoch: epoch
+          mask: binary mask of pad tokens
+          end_mask: binary mask of if there is an end token
+          tokens: tokens which were generated (used for syllable rewards)
+          ewma_reward: moving average used to calcualte advantage
       Returns:
         Float tensor, shape [batch_size, sequence_length], the REINFORCE loss for
         each timestep.
+        cumulative rewards, rewards at each generation step
+        ewnna: exponential weighted moving average for advantage calculation
     '''
 
     batch_size, sequence_length = disc_logits.shape
@@ -367,9 +353,12 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
           tokens: tokens which were generated (used for syllable rewards)
           ewma_reward: moving average used to calcualte advantage
           syllable_dict: dictionary holding syllable value of each token
+          
       Returns:
         Float tensor, shape [batch_size, sequence_length], the REINFORCE loss for
         each timestep.
+        cumulative rewards, rewards at each generation step
+        ewnna: exponential weighted moving average for advantage calculation
     '''
 
     batch_size, sequence_length = disc_logits.shape
