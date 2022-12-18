@@ -291,6 +291,7 @@ def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask
     length_punishment = torch.zeros((batch_size,sequence_length)).cuda()
 
     for t in range(0,sequence_length):
+        #length reward
         if t < MIN_SEQ_LEN:
             punished_tensor = torch.ones((batch_size,)).cuda() * -(1 - t/MIN_SEQ_LEN)
             length_punishment[:,t] = torch.where(end_mask[:,t] != 1,length_punishment[:,t],punished_tensor)
@@ -298,7 +299,8 @@ def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask
             ones = torch.ones((batch_size,)).cuda()
             #if end after, its good increase reward
             length_punishment[:,t] = torch.where(end_mask[:,t] != 1,length_punishment[:,t],ones/6) 
-
+        
+        #discriminator reward
         for s in range(t, sequence_length):
 
             cumulative_rewards[:,s] += torch.tensor(np.power(gamma, (s - t))).cuda() * rewards[:,s]
@@ -319,7 +321,7 @@ def reinforce_loss(disc_logits, gen_logprobs, gamma, decay, epoch, mask,end_mask
     #this should encourage the model to not collapse to mode
 
     
-    
+       #regularization
     reg_2 = nn.functional.relu(torch.exp(gen_logprobs[:,1:]) - .995)*100 #the later values, would be close to 1 if repeating
    # print(torch.tensor([[0,0]]*batch_size).shape)
    # print(reg_2.shape)
@@ -385,7 +387,7 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
         int_zeros = torch.zeros((batch_size,),dtype=torch.int32).cuda()
         ones = torch.ones((batch_size,)).cuda()
         int_ones = torch.ones((batch_size,),dtype=torch.int32).cuda()
-        
+        #length reward
         if t < MIN_SEQ_LEN:
             punished_tensor = torch.ones((batch_size,)).cuda() * -(1 - t/MIN_SEQ_LEN)
             length_punishment[:,t] = torch.where(end_mask[:,t] != 1,length_punishment[:,t],punished_tensor)
@@ -394,7 +396,7 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
             #if end after, its good increase reward
             length_punishment[:,t] = torch.where(end_mask[:,t] != 1,length_punishment[:,t],ones/6) 
         
-        
+        #syllable reward
         #calculate current line 
         new_line = torch.where(tokens[:,t] == 50118,ones,zeros).int() #one if is new line
 
@@ -422,7 +424,9 @@ def reinforce_loss_syllables(disc_logits, gen_logprobs, gamma, decay, epoch, mas
         running_syllables = torch.where(tokens[:,t] != 0,running_syllables,int_zeros) #if is start, zero
         running_syllables = torch.where(tokens[:,t] != 2,running_syllables,int_zeros) #if is end, zero
         #add reward if syllables match, do not punish bc worried about 
-
+        #syllable reward end
+        
+        #discrimiantor reward
         for s in range(t, sequence_length):
 
             cumulative_rewards[:,s] += torch.tensor(np.power(gamma, (s - t))).cuda() * rewards[:,s]
